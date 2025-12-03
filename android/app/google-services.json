@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "939968542850",
+    "project_id": "refrigerator-alchemist-93598",
+    "storage_bucket": "refrigerator-alchemist-93598.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:939968542850:android:fdf091f9de762568fa9c9b",
+        "android_client_info": {
+          "package_name": "com.example.refrigerator_alchemist"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "939968542850-vrde1h6nubi0p8dbigaghnt67f6mc4hr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.refrigerator_alchemist",
+            "certificate_hash": "19fa2b1ce7f4b6958b8533d332e7ffbe332d97f0"
+          }
+        },
+        {
+          "client_id": "939968542850-sbtipmmqgcf3tlvrs09b77ksg8re2afp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEWERcGEjs-G2H6GPiHAqOhifjjPZkKwE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "939968542850-sbtipmmqgcf3tlvrs09b77ksg8re2afp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
