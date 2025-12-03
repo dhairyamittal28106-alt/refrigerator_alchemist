@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui'; // Required for ImageFilter
+import 'dart:ui'; 
+import 'dart:typed_data'; // For screenshot
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
@@ -24,11 +25,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 // --- ADMOB IMPORT ---
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+// --- SHARE IMPORTS ---
+import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
+
 late List<CameraDescription> cameras;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
   await Firebase.initializeApp();
   await MobileAds.instance.initialize();
 
@@ -145,7 +149,7 @@ class AuthGate extends StatelessWidget {
   }
 }
 
-// ==================== PREMIUM LOGIN UI ====================
+// ==================== LOGIN PAGE ====================
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -154,29 +158,20 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  int _authMode = 0; // 0: Google, 1: Email
+  int _authMode = 0; 
   bool _isLoading = false;
-
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
-  void _showMessage(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: isError ? Colors.redAccent : const Color(0xFF00FFC2),
-        behavior: SnackBarBehavior.floating,
-      )
-    );
+  void _showMessage(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.redAccent));
   }
 
   Future<void> _handleGoogle() async {
     setState(() => _isLoading = true);
     try {
       await Provider.of<AuthProvider>(context, listen: false).signInWithGoogle();
-    } catch (e) {
-      _showMessage("Google Sign In Failed", isError: true);
-    }
+    } catch (e) { _showMessage("Google Sign In Failed"); }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -185,14 +180,9 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (isLogin) {
-        await auth.signInWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
-      } else {
-        await auth.signUpWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
-      }
-    } catch (e) {
-      _showMessage(e.toString(), isError: true);
-    }
+      if (isLogin) await auth.signInWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
+      else await auth.signUpWithEmail(_emailCtrl.text.trim(), _passCtrl.text.trim());
+    } catch (e) { _showMessage(e.toString()); }
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -202,25 +192,8 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Image.network(
-              "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000&auto=format&fit=crop",
-              fit: BoxFit.cover,
-              errorBuilder: (ctx, err, stack) => Container(color: const Color(0xFF101010)),
-            ),
-          ),
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.4), Colors.black],
-                ),
-              ),
-            ),
-          ),
-          
+          Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000", fit: BoxFit.cover, errorBuilder: (c,e,s)=>Container(color: const Color(0xFF101010)))),
+          Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.4), Colors.black])))),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -234,7 +207,6 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 10),
                     const Text("Login to save your recipes.", style: TextStyle(color: Colors.white54)),
                     const SizedBox(height: 40),
-
                     GlassContainer(
                       opacity: 0.15,
                       child: Column(
@@ -244,18 +216,14 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(16)),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _toggleBtn(Icons.g_mobiledata, 0),
-                                _toggleBtn(Icons.email_outlined, 1),
-                              ],
+                              children: [_toggleBtn(Icons.g_mobiledata, 0), _toggleBtn(Icons.email_outlined, 1)],
                             ),
                           ),
                           const SizedBox(height: 30),
-
-                          if (_isLoading) 
-                            const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF00FFC2)))
-                          else 
-                            _buildAuthForm(),
+                          if (_isLoading) const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF00FFC2)))
+                          else _authMode == 0 
+                            ? ElevatedButton.icon(icon: const Icon(Icons.g_mobiledata, color: Colors.black), label: const Text("Continue with Google", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)), onPressed: _handleGoogle)
+                            : Column(children: [_input(_emailCtrl, "Email"), const SizedBox(height: 10), _input(_passCtrl, "Password", isPass: true), const SizedBox(height: 20), Row(children: [Expanded(child: ElevatedButton(onPressed: ()=>_handleEmail(false), child: const Text("Sign Up"))), const SizedBox(width: 10), Expanded(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00FFC2)), onPressed: ()=>_handleEmail(true), child: const Text("Login", style: TextStyle(color: Colors.black))))])]),
                         ],
                       ),
                     ),
@@ -268,41 +236,11 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
-  Widget _toggleBtn(IconData icon, int index) {
-    final isSelected = _authMode == index;
-    return GestureDetector(
-      onTap: () => setState(() => _authMode = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 35),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00FFC2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: isSelected ? Colors.black : Colors.white54, size: 28),
-      ),
-    );
-  }
-
-  Widget _buildAuthForm() {
-    switch (_authMode) {
-      case 0: return GestureDetector(onTap: _handleGoogle, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)), child: const Center(child: Text("Continue with Google", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)))));
-      case 1: return Column(children: [_inputField(_emailCtrl, "Email Address", Icons.email), const SizedBox(height: 15), _inputField(_passCtrl, "Password", Icons.lock, isPass: true), const SizedBox(height: 25), Row(children: [Expanded(child: _actionBtn("Sign Up", () => _handleEmail(false), isOutline: true)), const SizedBox(width: 10), Expanded(child: _actionBtn("Login", () => _handleEmail(true)))])]);
-      default: return const SizedBox.shrink();
-    }
-  }
-
-  Widget _inputField(TextEditingController ctrl, String hint, IconData icon, {bool isPass = false}) {
-    return TextField(controller: ctrl, obscureText: isPass, style: const TextStyle(color: Colors.white), decoration: InputDecoration(prefixIcon: Icon(icon, color: Colors.white54), hintText: hint, hintStyle: const TextStyle(color: Colors.white30), filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00FFC2)))));
-  }
-
-  Widget _actionBtn(String text, VoidCallback onTap, {bool isOutline = false}) {
-    return GestureDetector(onTap: onTap, child: Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 16), decoration: BoxDecoration(color: isOutline ? Colors.transparent : const Color(0xFF00FFC2), border: isOutline ? Border.all(color: const Color(0xFF00FFC2)) : null, borderRadius: BorderRadius.circular(16)), child: Center(child: Text(text, style: TextStyle(color: isOutline ? const Color(0xFF00FFC2) : Colors.black, fontWeight: FontWeight.bold)))));
-  }
+  Widget _toggleBtn(IconData icon, int index) => GestureDetector(onTap: () => setState(() => _authMode = index), child: Container(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 35), decoration: BoxDecoration(color: _authMode == index ? const Color(0xFF00FFC2) : Colors.transparent, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: _authMode == index ? Colors.black : Colors.white54)));
+  Widget _input(TextEditingController c, String h, {bool isPass = false}) => TextField(controller: c, obscureText: isPass, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: h, hintStyle: const TextStyle(color: Colors.white30), filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00FFC2)))));
 }
 
-// ==================== PROVIDER (WITH DELETE LOGIC) ====================
+// ==================== PROVIDER (WITH DELETE) ====================
 
 class RecipeProvider extends ChangeNotifier {
   Map<String, String>? recipe;
@@ -404,20 +342,15 @@ class RecipeProvider extends ChangeNotifier {
     } catch (e) { print("Error saving history: $e"); }
   }
 
-  // *** NEW: DELETE FUNCTION ***
   Future<void> deleteRecipe(String docId) async {
     final user = _auth.currentUser;
     if (user == null) return;
     try {
-      // Remove from local list instantly for speed
       history.removeWhere((item) => item['id'] == docId);
       notifyListeners();
-      
-      // Remove from Cloud
       await _db.collection('users').doc(user.uid).collection('recipes').doc(docId).delete();
     } catch (e) {
-      print("Error deleting recipe: $e");
-      // Reload if error occurs
+      print("Error deleting: $e");
       _loadHistory();
     }
   }
@@ -425,7 +358,7 @@ class RecipeProvider extends ChangeNotifier {
   Future<void> clearHistory() async { history.clear(); notifyListeners(); }
 }
 
-// ==================== API HELPERS ====================
+// ==================== API HELPERS (CLARIFAI + OPENROUTER) ====================
 
 class ClarifaiClient {
   final String pat;
@@ -666,7 +599,7 @@ class _RefrigeratorAlchemistState extends State<RefrigeratorAlchemist> {
   }
 }
 
-// *** UPDATED HOME CAROUSEL WITH DOTS ***
+// *** HOME SCREEN (CLEAN HEADER + DOTS) ***
 class HomeCarousel extends StatefulWidget {
   const HomeCarousel({super.key});
   @override
@@ -674,7 +607,7 @@ class HomeCarousel extends StatefulWidget {
 }
 
 class _HomeCarouselState extends State<HomeCarousel> {
-  int _pageIndex = 0; // To track current slide for dots
+  int _pageIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -688,12 +621,12 @@ class _HomeCarouselState extends State<HomeCarousel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // LEFT: Title (No Logo)
+                // CLEAN TITLE
                 const Text(
                   "Fridge Alchemist", 
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2)
                 ),
-                // RIGHT: Points
+                // POINTS
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -716,12 +649,12 @@ class _HomeCarouselState extends State<HomeCarousel> {
             child: PageView(
               controller: PageController(viewportFraction: 0.85),
               physics: const BouncingScrollPhysics(),
-              onPageChanged: (i) => setState(() => _pageIndex = i), // Track change
+              onPageChanged: (i) => setState(() => _pageIndex = i),
               children: const [ScanCard(), ManualInputCard()],
             ),
           ),
           
-          // *** NEW: DOT INDICATORS ***
+          // *** DOTS ***
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -815,7 +748,7 @@ class ScanCard extends StatelessWidget {
   }
 }
 
-// ==================== CAMERA PAGE WITH INTERSTITIAL ADS ====================
+// ==================== CAMERA PAGE ====================
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -1116,7 +1049,7 @@ class _BaseResultProcessorState extends State<_BaseResultProcessor> with SingleT
   }
 }
 
-// ==================== HISTORY PAGE (WITH SWIPE-TO-DELETE) ====================
+// ==================== HISTORY PAGE (WITH PROFILE & DELETE) ====================
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -1162,7 +1095,7 @@ class HistoryPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Kitchen History", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                // *** PROFILE ICON ***
+                // *** PROFILE ICON HERE ***
                 GestureDetector(
                   onTap: () => _showProfileDialog(context, user),
                   child: CircleAvatar(
@@ -1193,7 +1126,6 @@ class HistoryPage extends StatelessWidget {
                   itemBuilder: (ctx, i) {
                     final item = provider.history[i];
                     
-                    // *** SWIPE TO DELETE WRAPPER ***
                     return Dismissible(
                       key: Key(item['id'] ?? item.toString()),
                       direction: DismissDirection.endToStart,
@@ -1247,24 +1179,74 @@ class RecipeRevealPage extends StatefulWidget {
   final String? photoPath;
   final bool isHistoryView;
 
-  const RecipeRevealPage({super.key, required this.recipe, required this.photoPath, this.isHistoryView = false});
+  const RecipeRevealPage({
+    super.key,
+    required this.recipe,
+    required this.photoPath,
+    this.isHistoryView = false,
+  });
 
   @override
   State<RecipeRevealPage> createState() => _RecipeRevealPageState();
 }
 
 class _RecipeRevealPageState extends State<RecipeRevealPage> {
-  bool? isLiked; 
+  ScreenshotController screenshotController = ScreenshotController();
+  bool? isLiked;
 
   void _rate(bool like) {
-    if (isLiked != null) return; 
+    if (isLiked != null) return;
     setState(() => isLiked = like);
 
     if (like) {
       Provider.of<RecipeProvider>(context, listen: false).addPoints(10);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Delicious! You earned 10 Quad Points! 💎"), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Delicious! You earned 10 Quad Points! 💎"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        )
+      );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Thanks for feedback! We'll improve."), backgroundColor: Colors.redAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Thanks for feedback! We'll improve."), backgroundColor: Colors.redAccent)
+      );
+    }
+  }
+
+  Future<void> _shareRecipe() async {
+    try {
+      final image = await screenshotController.captureFromWidget(
+        Container(
+          width: 400, height: 600,
+          color: Colors.black,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.photoPath != null) 
+                Image.file(File(widget.photoPath!), height: 250, fit: BoxFit.cover),
+              const SizedBox(height: 20),
+              Text(
+                widget.recipe['dish'] ?? "Recipe",
+                style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              const Text("Created with Fridge Alchemist 🥦", style: TextStyle(color: Color(0xFF00FFC2), fontSize: 16)),
+            ],
+          ),
+        ),
+        delay: const Duration(milliseconds: 10)
+      );
+
+      final directory = await getApplicationDocumentsDirectory();
+      final imagePath = await File('${directory.path}/recipe_share.png').create();
+      await imagePath.writeAsBytes(image);
+
+      await Share.shareXFiles([XFile(imagePath.path)], text: "Look what I cooked with Fridge Alchemist! 👨‍🍳");
+    } catch (e) {
+      print("Share error: $e");
     }
   }
 
@@ -1274,23 +1256,37 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          if (widget.photoPath != null) 
+          // 1. BACKGROUND LAYER (Bottom)
+          if (widget.photoPath != null)
             Positioned.fill(child: Image.file(File(widget.photoPath!), fit: BoxFit.cover))
           else
-            Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80", fit: BoxFit.cover)), 
-            
-          Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.3), Colors.black], stops: const [0.0, 0.8])))),
-          
-          if(widget.isHistoryView)
-            Positioned(top: 50, left: 20, child: GestureDetector(onTap: () => Navigator.pop(context), child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white)))),
+            Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80", fit: BoxFit.cover)),
 
           Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black.withOpacity(0.3), Colors.black],
+                  stops: const [0.0, 0.8]
+                )
+              )
+            )
+          ),
+
+          // 2. CONTENT LAYER (Middle)
+          // This was previously blocking the buttons. Now it sits below them.
+          Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(25, 80, 25, 120),
+              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Top padding makes room for buttons
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.recipe['dish'] ?? '', style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)),
+                  Text(
+                    widget.recipe['dish'] ?? '',
+                    style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)
+                  ),
                   const SizedBox(height: 30),
                   GlassContainer(child: Text(widget.recipe['ingredients'] ?? '', style: const TextStyle(color: Colors.white70, height: 1.5))),
                   const SizedBox(height: 20),
@@ -1321,7 +1317,33 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
               ),
             ),
           ),
-          
+
+          // 3. NAVIGATION LAYER (Top) 
+          // Moved to the END of the Stack so it is "on top" and clickable
+          Positioned(
+            top: 50, left: 20, right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Back Button (Only if history or deep link)
+                if(widget.isHistoryView)
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white))
+                  )
+                else 
+                  const SizedBox(), // Spacer to keep Share button on the right
+
+                // Share Button
+                GestureDetector(
+                  onTap: _shareRecipe,
+                  child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.share, color: Colors.white))
+                ),
+              ],
+            ),
+          ),
+
+          // 4. ACTION LAYER (Bottom)
           if (!widget.isHistoryView)
             Positioned(
               bottom: 30, left: 20, right: 20,
