@@ -30,8 +30,8 @@ Future<void> main() async {
   
   // Initialize Firebase
   await Firebase.initializeApp();
-  
-  // Initialize AdMob
+
+  // Initialize Mobile Ads SDK
   await MobileAds.instance.initialize();
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -150,7 +150,7 @@ class AuthGate extends StatelessWidget {
   }
 }
 
-// ==================== PREMIUM LOGIN UI ====================
+// ==================== PREMIUM LOGIN UI (DARK MODE) ====================
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -207,66 +207,68 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Background
+          // Background - NEW DARK IMAGE (Moody Ingredients)
           Positioned.fill(
             child: Image.network(
-              "https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&q=80",
+              "https://images.unsplash.com/photo-1516684732162-798a0062be99?q=80&w=1000&auto=format&fit=crop", 
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0F1115)),
             ),
           ),
+          // Heavy Gradient to blend text
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.3), Colors.black],
+                  colors: [Colors.black.withOpacity(0.4), Colors.black],
                 ),
               ),
             ),
           ),
           
           // Main Content
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.auto_awesome, size: 60, color: Color(0xFF00FFC2)),
-                  const SizedBox(height: 20),
-                  Text("Fridge Alchemist", style: GoogleFonts.playfairDisplay(fontSize: 36, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  const Text("Login to save your recipes.", style: TextStyle(color: Colors.white54)),
-                  const SizedBox(height: 40),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.auto_awesome, size: 60, color: Color(0xFF00FFC2)),
+                    const SizedBox(height: 20),
+                    Text("Fridge Alchemist", style: GoogleFonts.playfairDisplay(fontSize: 36, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 10),
+                    const Text("Turn ingredients into magic.", style: TextStyle(color: Colors.white54)),
+                    const SizedBox(height: 40),
 
-                  // Glass Card
-                  GlassContainer(
-                    opacity: 0.15,
-                    child: Column(
-                      children: [
-                        // Toggle Row
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(16)),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _toggleBtn(Icons.g_mobiledata, 0),
-                              _toggleBtn(Icons.email_outlined, 1),
-                            ],
+                    GlassContainer(
+                      opacity: 0.15,
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(16)),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _toggleBtn(Icons.g_mobiledata, 0),
+                                _toggleBtn(Icons.email_outlined, 1),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 30),
+                          const SizedBox(height: 30),
 
-                        if (_isLoading) 
-                          const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF00FFC2)))
-                        else 
-                          _buildAuthForm(),
-                      ],
+                          if (_isLoading) 
+                            const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: Color(0xFF00FFC2)))
+                          else 
+                            _buildAuthForm(),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -443,10 +445,17 @@ String _parseOpenRouterResponse(String body) {
   return body; 
 }
 
-// --- UPDATED INGREDIENT SELECTOR WITH CONFIDENCE CHECK ---
+// --- UPDATED INGREDIENT SELECTOR WITH VERY LOW THRESHOLDS ---
 List<String> _selectIngredientsFromDetectJson(Map<String, dynamic> detectJson) {
   final Map<String, double> bestScores = {};
-  const double confidenceThreshold = 0.85;
+  
+  // 1. INGREDIENT THRESHOLD (30%)
+  const double ingredientThreshold = 0.30; 
+  
+  // 2. SAFETY THRESHOLD (40%)
+  const double safetyThreshold = 0.40;
+  
+  double highestScoreFound = 0.0;
 
   try {
     final outputs = (detectJson["outputs"] as List?) ?? [];
@@ -459,9 +468,15 @@ List<String> _selectIngredientsFromDetectJson(Map<String, dynamic> detectJson) {
             final name = c["name"]?.toString().toLowerCase().trim() ?? "";
             final val = c["value"];
             final score = (val is num) ? val.toDouble() : double.tryParse(val.toString()) ?? 0.0;
-            if (score < confidenceThreshold) continue;
-            if (name.isNotEmpty && (!bestScores.containsKey(name) || bestScores[name]! < score)) {
-              bestScores[name] = score;
+            
+            // Track max confidence
+            if (score > highestScoreFound) highestScoreFound = score;
+
+            // Add if > 30%
+            if (score >= ingredientThreshold) {
+              if (name.isNotEmpty && (!bestScores.containsKey(name) || bestScores[name]! < score)) {
+                bestScores[name] = score;
+              }
             }
           }
         }
@@ -469,9 +484,12 @@ List<String> _selectIngredientsFromDetectJson(Map<String, dynamic> detectJson) {
     }
   } catch (e) { print("Ingredient extraction error: $e"); }
 
-  if (bestScores.isEmpty) throw Exception("NOT_FOOD");
+  // 3. FINAL DECISION:
+  if (bestScores.isEmpty || highestScoreFound < safetyThreshold) {
+    throw Exception("NOT_FOOD");
+  }
 
-  return bestScores.keys.take(6).map((e) => e.replaceAll(RegExp(r'[^\w\s\-]'), '').trim()).toList();
+  return bestScores.keys.take(8).map((e) => e.replaceAll(RegExp(r'[^\w\s\-]'), '').trim()).toList();
 }
 
 Future<String> generateRecipeFromPaths(List<String> imagePaths) async {
@@ -479,6 +497,7 @@ Future<String> generateRecipeFromPaths(List<String> imagePaths) async {
   final List<Map<String, dynamic>> detects = [];
   for (final p in imagePaths) detects.add(await detectFile(p));
   final merged = mergeDetectJsons(detects);
+  
   final ingredients = _selectIngredientsFromDetectJson(merged);
 
   final prompt = """
@@ -706,7 +725,7 @@ class ScanCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(30),
           image: const DecorationImage(
-            image: NetworkImage("https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80"),
+            image: NetworkImage("https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000&auto=format&fit=crop"), // New Dark Grocery Image
             fit: BoxFit.cover,
             colorFilter: ColorFilter.mode(Colors.black45, BlendMode.darken),
           ),
@@ -819,12 +838,12 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     _loadAd(); // LOAD AD WHEN CAMERA OPENS
   }
 
-  // Use your real ID since you are setting up for production/testing
+  // YOUR REAL AD UNIT ID from the screenshot: ca-app-pub-8295491395007414/9413676349
   void _loadAd() {
     InterstitialAd.load(
       adUnitId: Platform.isAndroid 
-        ? 'ca-app-pub-8295491395007414/9413676349' // Your Real Ad Unit ID
-        : 'ca-app-pub-3940256099942544/4411468910', // iOS Test ID (keep or change if deploying to iOS)
+        ? 'ca-app-pub-8295491395007414/9413676349' // Real Android ID
+        : 'ca-app-pub-3940256099942544/4411468910', // iOS (Test)
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
@@ -968,6 +987,7 @@ class ResultPageBurst extends StatelessWidget {
   @override Widget build(BuildContext context) => _BaseResultProcessor(task: () async => await generateRecipeFromPaths(paths), imagePath: paths.first);
 }
 
+// --- UPDATED PROCESSOR TO CATCH "NOT_FOOD" ERROR ---
 class _BaseResultProcessor extends StatefulWidget {
   final Future<String> Function() task;
   final String imagePath;
@@ -994,6 +1014,7 @@ class _BaseResultProcessorState extends State<_BaseResultProcessor> with SingleT
     } catch (e) {
       if (!mounted) return;
       
+      // CUSTOM ERROR HANDLING FOR NON-FOOD ITEMS
       String message = "Something went wrong.";
       String title = "Error";
       
@@ -1014,8 +1035,8 @@ class _BaseResultProcessorState extends State<_BaseResultProcessor> with SingleT
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(ctx); 
-                Navigator.pop(context); 
+                Navigator.pop(ctx); // Close dialog
+                Navigator.pop(context); // Back to camera
               },
               child: const Text("Try Again", style: TextStyle(color: Color(0xFF00FFC2))),
             )
