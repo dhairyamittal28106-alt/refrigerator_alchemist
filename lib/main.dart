@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui'; 
-import 'dart:typed_data'; // For screenshot
+import 'dart:typed_data'; 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:image_picker/image_picker.dart';
+import 'package:image/image.dart' as img; 
 
 // --- FIREBASE IMPORTS ---
 import 'package:firebase_core/firebase_core.dart';
@@ -192,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000", fit: BoxFit.cover, errorBuilder: (c,e,s)=>Container(color: const Color(0xFF101010)))),
+          Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000&auto=format&fit=crop", fit: BoxFit.cover, errorBuilder: (c,e,s)=>Container(color: const Color(0xFF101010)))),
           Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.4), Colors.black])))),
           SafeArea(
             child: Center(
@@ -240,7 +241,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget _input(TextEditingController c, String h, {bool isPass = false}) => TextField(controller: c, obscureText: isPass, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: h, hintStyle: const TextStyle(color: Colors.white30), filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00FFC2)))));
 }
 
-// ==================== PROVIDER (WITH DELETE) ====================
+// ==================== PROVIDER ====================
 
 class RecipeProvider extends ChangeNotifier {
   Map<String, String>? recipe;
@@ -358,7 +359,7 @@ class RecipeProvider extends ChangeNotifier {
   Future<void> clearHistory() async { history.clear(); notifyListeners(); }
 }
 
-// ==================== API HELPERS (CLARIFAI + OPENROUTER) ====================
+// ==================== API HELPERS ====================
 
 class ClarifaiClient {
   final String pat;
@@ -366,7 +367,10 @@ class ClarifaiClient {
   Future<Map<String, dynamic>> detectFoodBase64(String base64Image) async {
     final uri = Uri.parse("https://api.clarifai.com/v2/models/food-item-recognition/versions/1d5fd481e0cf4826aa72ec3ff049e044/outputs");
     final body = {"user_app_id": {"user_id": "clarifai", "app_id": "main"}, "inputs": [{"data": {"image": {"base64": base64Image}}}]};
-    final res = await http.post(uri, headers: {"Authorization": "Key $pat", "Content-Type": "application/json"}, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+    
+    final res = await http.post(uri, headers: {"Authorization": "Key $pat", "Content-Type": "application/json"}, body: jsonEncode(body))
+      .timeout(const Duration(seconds: 90)); 
+    
     if (res.statusCode < 200 || res.statusCode >= 300) throw Exception("Clarifai detect failed");
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
@@ -378,8 +382,20 @@ Future<Map<String, dynamic>> detectFile(String path) async {
   final client = ClarifaiClient(pat: pat);
   final file = File(path);
   if (!await file.exists()) throw Exception("File not found");
-  final bytes = await file.readAsBytes();
-  return await client.detectFoodBase64(base64Encode(bytes));
+
+  try {
+    final bytes = await file.readAsBytes();
+    final image = img.decodeImage(bytes);
+    if (image != null) {
+      final resized = img.copyResize(image, width: 800);
+      final compressedBytes = img.encodeJpg(resized, quality: 85);
+      return await client.detectFoodBase64(base64Encode(compressedBytes));
+    }
+    return await client.detectFoodBase64(base64Encode(bytes));
+  } catch (e) {
+    final bytes = await file.readAsBytes();
+    return await client.detectFoodBase64(base64Encode(bytes));
+  }
 }
 
 Map<String, dynamic> mergeDetectJsons(List<Map<String, dynamic>> list) {
@@ -449,10 +465,10 @@ Future<String> generateWithOpenRouter(String prompt) async {
 
   http.Response res;
   try {
-    res = await http.post(uri, headers: {"Content-Type": "application/json", "Authorization": "Bearer $key"}, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+    res = await http.post(uri, headers: {"Content-Type": "application/json", "Authorization": "Bearer $key"}, body: jsonEncode(body)).timeout(const Duration(seconds: 90));
   } catch (_) {
     final uri2 = Uri.parse("$base/v1/chat/completions");
-    res = await http.post(uri2, headers: {"Content-Type": "application/json", "Authorization": "Bearer $key"}, body: jsonEncode(body)).timeout(const Duration(seconds: 30));
+    res = await http.post(uri2, headers: {"Content-Type": "application/json", "Authorization": "Bearer $key"}, body: jsonEncode(body)).timeout(const Duration(seconds: 90));
   }
   if (res.statusCode < 200 || res.statusCode >= 300) throw Exception("OpenRouter request failed");
   
@@ -599,7 +615,7 @@ class _RefrigeratorAlchemistState extends State<RefrigeratorAlchemist> {
   }
 }
 
-// *** HOME SCREEN (CLEAN HEADER + DOTS) ***
+// *** RESTORED HOME CAROUSEL WITH DOTS ***
 class HomeCarousel extends StatefulWidget {
   const HomeCarousel({super.key});
   @override
@@ -607,7 +623,7 @@ class HomeCarousel extends StatefulWidget {
 }
 
 class _HomeCarouselState extends State<HomeCarousel> {
-  int _pageIndex = 0;
+  int _pageIndex = 0; 
 
   @override
   Widget build(BuildContext context) {
@@ -621,7 +637,7 @@ class _HomeCarouselState extends State<HomeCarousel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // CLEAN TITLE
+                // TITLE (No Logo)
                 const Text(
                   "Fridge Alchemist", 
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2)
@@ -1095,7 +1111,8 @@ class HistoryPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Kitchen History", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                // *** PROFILE ICON HERE ***
+                
+                // *** PROFILE ICON MOVED HERE ***
                 GestureDetector(
                   onTap: () => _showProfileDialog(context, user),
                   child: CircleAvatar(
@@ -1126,6 +1143,7 @@ class HistoryPage extends StatelessWidget {
                   itemBuilder: (ctx, i) {
                     final item = provider.history[i];
                     
+                    // *** SWIPE TO DELETE WRAPPER ***
                     return Dismissible(
                       key: Key(item['id'] ?? item.toString()),
                       direction: DismissDirection.endToStart,
@@ -1179,12 +1197,7 @@ class RecipeRevealPage extends StatefulWidget {
   final String? photoPath;
   final bool isHistoryView;
 
-  const RecipeRevealPage({
-    super.key,
-    required this.recipe,
-    required this.photoPath,
-    this.isHistoryView = false,
-  });
+  const RecipeRevealPage({super.key, required this.recipe, required this.photoPath, this.isHistoryView = false});
 
   @override
   State<RecipeRevealPage> createState() => _RecipeRevealPageState();
@@ -1192,28 +1205,21 @@ class RecipeRevealPage extends StatefulWidget {
 
 class _RecipeRevealPageState extends State<RecipeRevealPage> {
   ScreenshotController screenshotController = ScreenshotController();
-  bool? isLiked;
+  bool? isLiked; 
 
   void _rate(bool like) {
-    if (isLiked != null) return;
+    if (isLiked != null) return; 
     setState(() => isLiked = like);
 
     if (like) {
       Provider.of<RecipeProvider>(context, listen: false).addPoints(10);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Delicious! You earned 10 Quad Points! 💎"),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        )
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Delicious! You earned 10 Quad Points! 💎"), backgroundColor: Colors.green));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Thanks for feedback! We'll improve."), backgroundColor: Colors.redAccent)
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Thanks for feedback! We'll improve."), backgroundColor: Colors.redAccent));
     }
   }
 
+  // --- SHARE FEATURE ---
   Future<void> _shareRecipe() async {
     try {
       final image = await screenshotController.captureFromWidget(
@@ -1224,14 +1230,9 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (widget.photoPath != null) 
-                Image.file(File(widget.photoPath!), height: 250, fit: BoxFit.cover),
+              if(widget.photoPath != null) Image.file(File(widget.photoPath!), height: 250, fit: BoxFit.cover),
               const SizedBox(height: 20),
-              Text(
-                widget.recipe['dish'] ?? "Recipe",
-                style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
+              Text(widget.recipe['dish'] ?? "Recipe", style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
               const SizedBox(height: 20),
               const Text("Created with Fridge Alchemist 🥦", style: TextStyle(color: Color(0xFF00FFC2), fontSize: 16)),
             ],
@@ -1243,11 +1244,9 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
       final directory = await getApplicationDocumentsDirectory();
       final imagePath = await File('${directory.path}/recipe_share.png').create();
       await imagePath.writeAsBytes(image);
-
-      await Share.shareXFiles([XFile(imagePath.path)], text: "Look what I cooked with Fridge Alchemist! 👨‍🍳");
-    } catch (e) {
-      print("Share error: $e");
-    }
+      
+      await Share.shareXFiles([XFile(imagePath.path)], text: "Check out this recipe I made with Fridge Alchemist! 👨‍🍳");
+    } catch (e) { print("Share error: $e"); }
   }
 
   @override
@@ -1256,37 +1255,21 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. BACKGROUND LAYER (Bottom)
-          if (widget.photoPath != null)
+          if (widget.photoPath != null) 
             Positioned.fill(child: Image.file(File(widget.photoPath!), fit: BoxFit.cover))
           else
-            Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80", fit: BoxFit.cover)),
-
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.3), Colors.black],
-                  stops: const [0.0, 0.8]
-                )
-              )
-            )
-          ),
-
-          // 2. CONTENT LAYER (Middle)
-          // This was previously blocking the buttons. Now it sits below them.
+            Positioned.fill(child: Image.network("https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80", fit: BoxFit.cover)), 
+            
+          Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.3), Colors.black], stops: const [0.0, 0.8])))),
+          
+          // CONTENT LAYER (Middle)
           Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Top padding makes room for buttons
+              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Extra padding top for buttons
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.recipe['dish'] ?? '',
-                    style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)
-                  ),
+                  Text(widget.recipe['dish'] ?? '', style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)),
                   const SizedBox(height: 30),
                   GlassContainer(child: Text(widget.recipe['ingredients'] ?? '', style: const TextStyle(color: Colors.white70, height: 1.5))),
                   const SizedBox(height: 20),
@@ -1318,32 +1301,21 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
             ),
           ),
 
-          // 3. NAVIGATION LAYER (Top) 
-          // Moved to the END of the Stack so it is "on top" and clickable
+          // TOP NAVIGATION LAYER (Last = On Top)
           Positioned(
             top: 50, left: 20, right: 20,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Back Button (Only if history or deep link)
                 if(widget.isHistoryView)
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white))
-                  )
-                else 
-                  const SizedBox(), // Spacer to keep Share button on the right
+                  GestureDetector(onTap: () => Navigator.pop(context), child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white)))
+                else const SizedBox(),
 
-                // Share Button
-                GestureDetector(
-                  onTap: _shareRecipe,
-                  child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.share, color: Colors.white))
-                ),
+                GestureDetector(onTap: _shareRecipe, child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.share, color: Colors.white))),
               ],
             ),
           ),
-
-          // 4. ACTION LAYER (Bottom)
+          
           if (!widget.isHistoryView)
             Positioned(
               bottom: 30, left: 20, right: 20,
