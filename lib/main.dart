@@ -26,9 +26,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 // --- ADMOB IMPORT ---
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-// --- SHARE IMPORTS ---
+// --- SHARE & LAUNCH IMPORTS ---
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 late List<CameraDescription> cameras;
 
@@ -615,7 +616,7 @@ class _RefrigeratorAlchemistState extends State<RefrigeratorAlchemist> {
   }
 }
 
-// *** RESTORED HOME CAROUSEL WITH DOTS ***
+// *** HOME SCREEN ***
 class HomeCarousel extends StatefulWidget {
   const HomeCarousel({super.key});
   @override
@@ -637,12 +638,10 @@ class _HomeCarouselState extends State<HomeCarousel> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // TITLE (No Logo)
                 const Text(
                   "Fridge Alchemist", 
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1.2)
                 ),
-                // POINTS
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -764,7 +763,7 @@ class ScanCard extends StatelessWidget {
   }
 }
 
-// ==================== CAMERA PAGE ====================
+// ==================== CAMERA PAGE WITH INTERSTITIAL ADS ====================
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -1065,8 +1064,6 @@ class _BaseResultProcessorState extends State<_BaseResultProcessor> with SingleT
   }
 }
 
-// ==================== HISTORY PAGE (WITH PROFILE & DELETE) ====================
-
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
 
@@ -1111,8 +1108,6 @@ class HistoryPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Kitchen History", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                
-                // *** PROFILE ICON MOVED HERE ***
                 GestureDetector(
                   onTap: () => _showProfileDialog(context, user),
                   child: CircleAvatar(
@@ -1143,7 +1138,6 @@ class HistoryPage extends StatelessWidget {
                   itemBuilder: (ctx, i) {
                     final item = provider.history[i];
                     
-                    // *** SWIPE TO DELETE WRAPPER ***
                     return Dismissible(
                       key: Key(item['id'] ?? item.toString()),
                       direction: DismissDirection.endToStart,
@@ -1205,7 +1199,74 @@ class RecipeRevealPage extends StatefulWidget {
 
 class _RecipeRevealPageState extends State<RecipeRevealPage> {
   ScreenshotController screenshotController = ScreenshotController();
+  // NEW: Ad variable
+  InterstitialAd? _interstitialAd;
   bool? isLiked; 
+
+  @override
+  void initState() {
+    super.initState();
+    // NEW: Load ad on init so it's ready when user clicks Shop
+    _loadAd();
+  }
+
+  @override
+  void dispose() {
+    _interstitialAd?.dispose();
+    super.dispose();
+  }
+
+  // NEW: Ad Load Logic (Same as CameraPage)
+  void _loadAd() {
+    InterstitialAd.load(
+      adUnitId: Platform.isAndroid 
+        ? 'ca-app-pub-8295491395007414/9413676349' 
+        : 'ca-app-pub-3940256099942544/4411468910', 
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitialAd = ad;
+          // Prepare callbacks for when the ad is shown/dismissed
+          _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              _loadAd(); // Reload for next click
+            },
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              ad.dispose();
+              _loadAd();
+            },
+          );
+        },
+        onAdFailedToLoad: (err) {
+          print('Ad Failed to Load: $err');
+        },
+      ),
+    );
+  }
+
+  // NEW: Show Ad Wrapper
+  void _showAdAndNavigate(VoidCallback onDone) {
+    if (_interstitialAd != null) {
+      // Override callbacks to handle navigation on dismiss
+      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          ad.dispose();
+          onDone(); // Launch URL after ad closes
+          _loadAd();
+        },
+        onAdFailedToShowFullScreenContent: (ad, err) {
+          ad.dispose();
+          onDone(); // Launch URL even if ad fails
+          _loadAd();
+        }
+      );
+      _interstitialAd!.show();
+      _interstitialAd = null;
+    } else {
+      onDone(); // No ad ready? Just launch.
+    }
+  }
 
   void _rate(bool like) {
     if (isLiked != null) return; 
@@ -1219,7 +1280,6 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
     }
   }
 
-  // --- SHARE FEATURE ---
   Future<void> _shareRecipe() async {
     try {
       final image = await screenshotController.captureFromWidget(
@@ -1232,7 +1292,11 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
             children: [
               if(widget.photoPath != null) Image.file(File(widget.photoPath!), height: 250, fit: BoxFit.cover),
               const SizedBox(height: 20),
-              Text(widget.recipe['dish'] ?? "Recipe", style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              Text(
+                widget.recipe['dish'] ?? "Recipe",
+                style: GoogleFonts.playfairDisplay(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 20),
               const Text("Created with Fridge Alchemist 🥦", style: TextStyle(color: Color(0xFF00FFC2), fontSize: 16)),
             ],
@@ -1244,9 +1308,44 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
       final directory = await getApplicationDocumentsDirectory();
       final imagePath = await File('${directory.path}/recipe_share.png').create();
       await imagePath.writeAsBytes(image);
-      
-      await Share.shareXFiles([XFile(imagePath.path)], text: "Check out this recipe I made with Fridge Alchemist! 👨‍🍳");
-    } catch (e) { print("Share error: $e"); }
+
+      await Share.shareXFiles([XFile(imagePath.path)], text: "Look what I cooked with Fridge Alchemist! 👨‍🍳");
+    } catch (e) {
+      print("Share error: $e");
+    }
+  }
+
+  // *** NEW: GROCERY LAUNCHER ***
+Future<void> _launchGroceryApp(String appName, String query) async {
+    Uri url;
+    String encodedQuery = Uri.encodeComponent(query);
+
+    if (appName == 'Blinkit') {
+      url = Uri.parse("https://blinkit.com/s/?q=$encodedQuery");
+    } else if (appName == 'Zepto') {
+      // *** FIXED URL: Changed zepto.co.in to zeptonow.com ***
+      url = Uri.parse("https://zeptonow.com/search?query=$encodedQuery"); 
+    } else {
+      url = Uri.parse("https://www.swiggy.com/instamart/search?query=$encodedQuery");
+    }
+
+    try {
+      // Try to launch in the external app (Blinkit/Zepto App)
+      bool launched = await launchUrl(
+        url, 
+        mode: LaunchMode.externalApplication, 
+      );
+
+      if (!launched) {
+        // If app launch fails, try opening in browser as fallback
+        await launchUrl(
+          url, 
+          mode: LaunchMode.platformDefault,
+        );
+      }
+    } catch (e) {
+      print("Could not launch $appName: $e");
+    }
   }
 
   @override
@@ -1262,19 +1361,58 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
             
           Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.3), Colors.black], stops: const [0.0, 0.8])))),
           
-          // CONTENT LAYER (Middle)
+          // CONTENT LAYER
           Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Extra padding top for buttons
+              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Top padding for buttons
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.recipe['dish'] ?? '', style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)),
+                  Text(
+                    widget.recipe['dish'] ?? '',
+                    style: GoogleFonts.playfairDisplay(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white, height: 1.1)
+                  ),
                   const SizedBox(height: 30),
                   GlassContainer(child: Text(widget.recipe['ingredients'] ?? '', style: const TextStyle(color: Colors.white70, height: 1.5))),
                   const SizedBox(height: 20),
                   GlassContainer(child: Text(widget.recipe['steps'] ?? '', style: const TextStyle(color: Colors.white70, height: 1.5))),
                   
+                  // *** SHOPPING BUTTONS WITH ADS ***
+                  const SizedBox(height: 30),
+                  const Center(child: Text("Missing something? Buy in 10 mins ⚡", style: TextStyle(color: Colors.white54, fontSize: 14))),
+                  const SizedBox(height: 15),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // BLINKIT -> Show Ad -> Launch
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF8CB46), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                          icon: const Icon(Icons.shopping_cart, size: 20),
+                          label: const Text("Blinkit"),
+                          onPressed: () => _showAdAndNavigate(() => _launchGroceryApp('Blinkit', widget.recipe['dish'] ?? 'Groceries')),
+                        ),
+                        const SizedBox(width: 15),
+                        // ZEPTO -> Show Ad -> Launch
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3600D1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                          icon: const Icon(Icons.flash_on, size: 20),
+                          label: const Text("Zepto"),
+                          onPressed: () => _showAdAndNavigate(() => _launchGroceryApp('Zepto', widget.recipe['dish'] ?? 'Groceries')),
+                        ),
+                        const SizedBox(width: 15),
+                        // INSTAMART -> Show Ad -> Launch
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5200), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                          icon: const Icon(Icons.local_convenience_store_rounded, size: 20),
+                          label: const Text("Instamart"),
+                          onPressed: () => _showAdAndNavigate(() => _launchGroceryApp('Instamart', widget.recipe['dish'] ?? 'Groceries')),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   if (!widget.isHistoryView) ...[
                     const SizedBox(height: 40),
                     const Center(child: Text("Rate this Recipe", style: TextStyle(color: Colors.white54))),
@@ -1301,21 +1439,29 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
             ),
           ),
 
-          // TOP NAVIGATION LAYER (Last = On Top)
+          // TOP NAVIGATION LAYER
           Positioned(
             top: 50, left: 20, right: 20,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 if(widget.isHistoryView)
-                  GestureDetector(onTap: () => Navigator.pop(context), child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white)))
-                else const SizedBox(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.arrow_back, color: Colors.white))
+                  )
+                else 
+                  const SizedBox(),
 
-                GestureDetector(onTap: _shareRecipe, child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.share, color: Colors.white))),
+                GestureDetector(
+                  onTap: _shareRecipe,
+                  child: const GlassContainer(padding: EdgeInsets.all(10), borderRadius: BorderRadius.all(Radius.circular(50)), child: Icon(Icons.share, color: Colors.white))
+                ),
               ],
             ),
           ),
-          
+
+          // ACTION LAYER
           if (!widget.isHistoryView)
             Positioned(
               bottom: 30, left: 20, right: 20,
