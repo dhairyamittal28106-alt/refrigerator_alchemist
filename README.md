@@ -1,16 +1,22 @@
-# refrigerator_alchemist
+# Refrigerator Alchemist
 
-A new Flutter project.
+A Flutter app that turns ingredients on hand into recipe ideas. Users can add ingredients manually or scan them with the camera, review suggested recipes, and revisit saved history. The app uses image-recognition and recipe services, Firebase Authentication and Cloud Firestore, and supports Google sign-in.
 
-## Getting Started
+## Configure services
 
-This project is a starting point for a Flutter application.
+Before running, configure the provider settings expected by the app in `.env` and add the Firebase platform configuration for your own Firebase project. Do not commit private service credentials.
 
-A few resources to get you started if this is your first Flutter project:
+## Run locally
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Install Flutter and Dart 3.4 or newer, then run:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+    flutter pub get
+    flutter run
+
+Camera-based scanning requires a supported device and camera permission. Authentication and saved data require Firebase configuration.
+
+## Main implementation
+
+- `lib/main.dart`: app shell, authentication, ingredient entry and scan flow, recipe results, and history
+- `lib/assets/`: bundled app artwork
+- `pubspec.yaml`: Flutter packages and asset configuration

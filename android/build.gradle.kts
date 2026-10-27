@@ -1,4 +1,4 @@
-// android/build.gradle
+
 
 buildscript {
     repositories {
@@ -6,7 +6,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // This is the line that connects Firebase to your app
+        
         classpath("com.google.gms:google-services:4.4.2")
     }
 }

@@ -10,23 +10,23 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
-// ignore: unused_import
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:image_picker/image_picker.dart';
 import 'package:image/image.dart' as img; 
 
-// --- FIREBASE IMPORTS ---
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-// --- ADMOB IMPORT ---
+
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-// --- SHARE & LAUNCH IMPORTS ---
+
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -88,7 +88,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// ==================== AUTHENTICATION LOGIC ====================
+
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -151,7 +151,7 @@ class AuthGate extends StatelessWidget {
   }
 }
 
-// ==================== LOGIN PAGE ====================
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -242,7 +242,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget _input(TextEditingController c, String h, {bool isPass = false}) => TextField(controller: c, obscureText: isPass, style: const TextStyle(color: Colors.white), decoration: InputDecoration(hintText: h, hintStyle: const TextStyle(color: Colors.white30), filled: true, fillColor: Colors.black26, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Color(0xFF00FFC2)))));
 }
 
-// ==================== PROVIDER ====================
+
 
 class RecipeProvider extends ChangeNotifier {
   Map<String, String>? recipe;
@@ -360,7 +360,7 @@ class RecipeProvider extends ChangeNotifier {
   Future<void> clearHistory() async { history.clear(); notifyListeners(); }
 }
 
-// ==================== API HELPERS ====================
+
 
 class ClarifaiClient {
   final String pat;
@@ -507,7 +507,7 @@ Future<String> generateRecipeFromPaths(List<String> imagePaths) async {
 
 Future<String> generateRecipeWithClarifai(String imagePath) async => await generateRecipeFromPaths([imagePath]);
 
-// ==================== UI UTILITIES ====================
+
 
 class GlassContainer extends StatelessWidget {
   final Widget child;
@@ -552,7 +552,7 @@ class GlassContainer extends StatelessWidget {
   }
 }
 
-// ==================== MAIN SCREENS ====================
+
 
 class RefrigeratorAlchemist extends StatefulWidget {
   const RefrigeratorAlchemist({super.key});
@@ -616,7 +616,7 @@ class _RefrigeratorAlchemistState extends State<RefrigeratorAlchemist> {
   }
 }
 
-// *** HOME SCREEN ***
+
 class HomeCarousel extends StatefulWidget {
   const HomeCarousel({super.key});
   @override
@@ -669,7 +669,7 @@ class _HomeCarouselState extends State<HomeCarousel> {
             ),
           ),
           
-          // *** DOTS ***
+          
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -763,7 +763,7 @@ class ScanCard extends StatelessWidget {
   }
 }
 
-// ==================== CAMERA PAGE WITH INTERSTITIAL ADS ====================
+
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -1199,14 +1199,14 @@ class RecipeRevealPage extends StatefulWidget {
 
 class _RecipeRevealPageState extends State<RecipeRevealPage> {
   ScreenshotController screenshotController = ScreenshotController();
-  // NEW: Ad variable
+  
   InterstitialAd? _interstitialAd;
   bool? isLiked; 
 
   @override
   void initState() {
     super.initState();
-    // NEW: Load ad on init so it's ready when user clicks Shop
+    
     _loadAd();
   }
 
@@ -1216,7 +1216,7 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
     super.dispose();
   }
 
-  // NEW: Ad Load Logic (Same as CameraPage)
+  
   void _loadAd() {
     InterstitialAd.load(
       adUnitId: Platform.isAndroid 
@@ -1226,11 +1226,11 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
-          // Prepare callbacks for when the ad is shown/dismissed
+          
           _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
-              _loadAd(); // Reload for next click
+              _loadAd(); 
             },
             onAdFailedToShowFullScreenContent: (ad, err) {
               ad.dispose();
@@ -1245,26 +1245,26 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
     );
   }
 
-  // NEW: Show Ad Wrapper
+  
   void _showAdAndNavigate(VoidCallback onDone) {
     if (_interstitialAd != null) {
-      // Override callbacks to handle navigation on dismiss
+      
       _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
         onAdDismissedFullScreenContent: (ad) {
           ad.dispose();
-          onDone(); // Launch URL after ad closes
+          onDone(); 
           _loadAd();
         },
         onAdFailedToShowFullScreenContent: (ad, err) {
           ad.dispose();
-          onDone(); // Launch URL even if ad fails
+          onDone(); 
           _loadAd();
         }
       );
       _interstitialAd!.show();
       _interstitialAd = null;
     } else {
-      onDone(); // No ad ready? Just launch.
+      onDone(); 
     }
   }
 
@@ -1315,7 +1315,7 @@ class _RecipeRevealPageState extends State<RecipeRevealPage> {
     }
   }
 
-  // *** NEW: GROCERY LAUNCHER ***
+  
 Future<void> _launchGroceryApp(String appName, String query) async {
     Uri url;
     String encodedQuery = Uri.encodeComponent(query);
@@ -1323,21 +1323,21 @@ Future<void> _launchGroceryApp(String appName, String query) async {
     if (appName == 'Blinkit') {
       url = Uri.parse("https://blinkit.com/s/?q=$encodedQuery");
     } else if (appName == 'Zepto') {
-      // *** FIXED URL: Changed zepto.co.in to zeptonow.com ***
+      
       url = Uri.parse("https://zeptonow.com/search?query=$encodedQuery"); 
     } else {
       url = Uri.parse("https://www.swiggy.com/instamart/search?query=$encodedQuery");
     }
 
     try {
-      // Try to launch in the external app (Blinkit/Zepto App)
+      
       bool launched = await launchUrl(
         url, 
         mode: LaunchMode.externalApplication, 
       );
 
       if (!launched) {
-        // If app launch fails, try opening in browser as fallback
+        
         await launchUrl(
           url, 
           mode: LaunchMode.platformDefault,
@@ -1361,10 +1361,10 @@ Future<void> _launchGroceryApp(String appName, String query) async {
             
           Positioned.fill(child: Container(decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.3), Colors.black], stops: const [0.0, 0.8])))),
           
-          // CONTENT LAYER
+          
           Positioned.fill(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), // Top padding for buttons
+              padding: const EdgeInsets.fromLTRB(25, 100, 25, 120), 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1377,7 +1377,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
                   const SizedBox(height: 20),
                   GlassContainer(child: Text(widget.recipe['steps'] ?? '', style: const TextStyle(color: Colors.white70, height: 1.5))),
                   
-                  // *** SHOPPING BUTTONS WITH ADS ***
+                  
                   const SizedBox(height: 30),
                   const Center(child: Text("Missing something? Buy in 10 mins ⚡", style: TextStyle(color: Colors.white54, fontSize: 14))),
                   const SizedBox(height: 15),
@@ -1386,7 +1386,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // BLINKIT -> Show Ad -> Launch
+                        
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF8CB46), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
                           icon: const Icon(Icons.shopping_cart, size: 20),
@@ -1394,7 +1394,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
                           onPressed: () => _showAdAndNavigate(() => _launchGroceryApp('Blinkit', widget.recipe['dish'] ?? 'Groceries')),
                         ),
                         const SizedBox(width: 15),
-                        // ZEPTO -> Show Ad -> Launch
+                        
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3600D1), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
                           icon: const Icon(Icons.flash_on, size: 20),
@@ -1402,7 +1402,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
                           onPressed: () => _showAdAndNavigate(() => _launchGroceryApp('Zepto', widget.recipe['dish'] ?? 'Groceries')),
                         ),
                         const SizedBox(width: 15),
-                        // INSTAMART -> Show Ad -> Launch
+                        
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5200), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
                           icon: const Icon(Icons.local_convenience_store_rounded, size: 20),
@@ -1439,7 +1439,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
             ),
           ),
 
-          // TOP NAVIGATION LAYER
+          
           Positioned(
             top: 50, left: 20, right: 20,
             child: Row(
@@ -1461,7 +1461,7 @@ Future<void> _launchGroceryApp(String appName, String query) async {
             ),
           ),
 
-          // ACTION LAYER
+          
           if (!widget.isHistoryView)
             Positioned(
               bottom: 30, left: 20, right: 20,
